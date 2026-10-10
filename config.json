@@ -1,0 +1,53 @@
+{
+  "mode": "new_only",
+  "poll_seconds": 60,
+  "max_pages": 3,
+  "page_timeout_seconds": 40,
+  "notification_expiry_seconds": 1800,
+  "send_photos": true,
+  "sources": [
+    {
+      "name": "Thiết bị số – Mercari qua Hatobox",
+      "url": "https://hatobox.jp/mercari/category/7?order=desc&page=1&page_token=null&purchase_method=instant&sort=created_time&status=1"
+    },
+    {
+      "name": "Game Nintendo – Mercari qua Hatobox",
+      "url": "https://hatobox.jp/mercari/search?keyword=Nintendo&order=desc&page=1&page_token=null&purchase_method=instant&sort=created_time&status=1"
+    },
+    {
+      "name": "Game PlayStation – Mercari qua Hatobox",
+      "url": "https://hatobox.jp/mercari/search?keyword=PlayStation&order=desc&page=1&page_token=null&purchase_method=instant&sort=created_time&status=1"
+    },
+    {
+      "name": "Game Xbox – Mercari qua Hatobox",
+      "url": "https://hatobox.jp/mercari/search?keyword=Xbox&order=desc&page=1&page_token=null&purchase_method=instant&sort=created_time&status=1"
+    }
+  ],
+  "groups": [
+    {
+      "name": "Điện thoại / iPad",
+      "include": "iphone|ipad|galaxy|xperia|pixel\\s*\\d|redmi|xiaomi|oppo|aquos|nubia|スマートフォン|スマホ|タブレット|điện thoại|máy tính bảng",
+      "max_jpy": null,
+      "max_vnd": null
+    },
+    {
+      "name": "Laptop / MacBook",
+      "include": "macbook|laptop|ノートパソコン|ノートpc|thinkpad|latitude|elitebook|probook|zenbook|vivobook|surface\\s*(pro|laptop|book)|máy tính xách tay",
+      "max_jpy": null,
+      "max_vnd": null
+    },
+    {
+      "name": "Máy ảnh / máy chơi game",
+      "include": "カメラ|máy ảnh|camera|canon\\s*(eos|powershot)|nikon|fujifilm|lumix|olympus|pentax|gopro|sony\\s*[αa]\\d|ricoh\\s*gr|nintendo|switch|playstation|プレイステーション|ps[345]|xbox|steam\\s*deck|ゲーム機|3ds|ds\\s*lite|wii|ゲームボーイ",
+      "max_jpy": null,
+      "max_vnd": null
+    },
+    {
+      "name": "Tai nghe / loa",
+      "include": "イヤホン|ヘッドホン|ヘッドフォン|スピーカー|earbuds|headphones|airpods|tai nghe|\\bloa\\b|bose|jbl|sonos",
+      "max_jpy": null,
+      "max_vnd": null
+    }
+  ],
+  "exclude_title": "空箱|箱のみ|箱だけ|ケースのみ|ケース|フィルム|カバー|ソフトのみ|ゲームソフト|カセットのみ|交換用|ジャンク|部品取り|故障|不動|動作未確認|hộp rỗng|chỉ hộp|ốp lưng|miếng dán|máy hỏng|không hoạt động|không lên nguồn|không rõ hoạt động|充電器のみ|ケーブルのみ|レンズのみ|イヤーピース|イヤーパッド|ear\\s*tips|フィギュア|キーホルダー|ステッカー|攻略本|ソフト|カセット|chỉ đĩa|băng game|vỏ hộp|lens only|body cap"
+}
