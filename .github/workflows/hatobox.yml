@@ -1,0 +1,99 @@
+name: Hatobox Telegram
+
+on:
+  schedule:
+    - cron: '2-59/5 * * * *'
+  workflow_dispatch:
+    inputs:
+      resume:
+        description: 'Bỏ dấu tạm dừng sau khi đã kiểm tra lỗi xác minh Hatobox'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hatobox-state
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    if: github.event.repository.private == false && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Check Telegram secrets
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo 'Missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID in repository Secrets.'
+            exit 1
+          fi
+      - uses: actions/cache/restore@v6
+        id: state
+        with:
+          path: state
+          key: hatobox-state-v1-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: hatobox-state-v1-
+      - name: Check pause
+        id: gate
+        env:
+          RESUME: ${{ inputs.resume }}
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          pause = Path('state/paused')
+          if os.environ.get('RESUME') == 'true':
+              pause.unlink(missing_ok=True)
+          enabled = not pause.exists()
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('enabled=' + str(enabled).lower() + '\n')
+          if not enabled:
+              print('Paused after Hatobox verification request. Check access before resuming.')
+          if not Path('state/watcher.sqlite3').exists():
+              print('No previous state: this scan will establish a baseline without notifying old listings.')
+          PY
+      - uses: actions/setup-python@v7
+        if: steps.gate.outputs.enabled == 'true'
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install packages
+        if: steps.gate.outputs.enabled == 'true'
+        run: python -m pip install -r requirements.txt
+      - uses: actions/cache@v6
+        if: steps.gate.outputs.enabled == 'true'
+        with:
+          path: ~/.cache/ms-playwright
+          key: chromium-ubuntu24-${{ hashFiles('requirements.txt') }}
+      - name: Install Chromium and system libraries
+        if: steps.gate.outputs.enabled == 'true'
+        run: python -m playwright install --with-deps chromium
+      - name: Read listings and notify
+        if: steps.gate.outputs.enabled == 'true'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python - <<'PY'
+          import subprocess
+          from pathlib import Path
+          result = subprocess.run(['python', 'watcher.py', 'once'], check=False)
+          if result.returncode == 2:
+              Path('state').mkdir(exist_ok=True)
+              Path('state/paused').write_text('Hatobox verification requested\n')
+          raise SystemExit(result.returncode)
+          PY
+      - name: Save state even after a failed scan
+        if: always() && steps.gate.outcome == 'success'
+        uses: actions/cache/save@v6
+        with:
+          path: state
+          key: hatobox-state-v1-${{ github.run_id }}-${{ github.run_attempt }}
