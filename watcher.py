@@ -17,7 +17,7 @@ import urllib.error
 import urllib.request
 from datetime import datetime
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlparse, urljoin, urlencode
 from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parent
@@ -27,7 +27,7 @@ CARD_JS = r"""cards => cards.map(card => {
   const img = card.querySelector('a.item-link-image img');
   return {
     title: a ? a.innerText.trim() : '',
-    url: a ? a.href : '',
+    url: a ? a.getAttribute('href') || '' : '',
     price_jpy: card.querySelector('.price-sub')?.innerText || '',
     price_vnd: card.querySelector('.price-main')?.innerText || '',
     image_url: img ? (img.currentSrc || img.src) : ''
@@ -67,10 +67,17 @@ def money(text):
 
 
 def item_from_row(row):
-    parsed = urlparse(row.get("url", ""))
-    match = re.fullmatch(r"/mercari/item/(m\d+)", parsed.path)
-    if parsed.scheme != "https" or parsed.netloc != "hatobox.jp" or not match:
-        raise SourceError("Đường dẫn sản phẩm không đúng cấu trúc Hatobox.")
+    parsed = urlparse(urljoin("https://hatobox.jp/", str(row.get("url", "")).strip()))
+    match = re.fullmatch(r"/mercari/item/([A-Za-z0-9_-]{1,100})/?", parsed.path)
+    if parsed.scheme != "https" or parsed.netloc not in ("hatobox.jp", "www.hatobox.jp") or not match:
+        raise SourceError(f"Đường dẫn sản phẩm không đúng cấu trúc Hatobox (host={parsed.hostname or '(trống)'}, path={parsed.path[:100]}).")
+    product_id = match.group(1)
+    kinds = parse_qs(parsed.query, keep_blank_values=True).get("type", ["mer"])
+    if len(kinds) != 1 or not re.fullmatch(r"[A-Za-z0-9_-]{1,40}", kinds[0]):
+        raise SourceError("Tham số type của sản phẩm không hợp lệ; chưa cập nhật mốc.")
+    kind = kinds[0]
+    # Preserve existing Mercari IDs in cached history; distinguish other listing types.
+    identity = "mercari:" + product_id if kind == "mer" else f"mercari:{kind}:{product_id}"
     if not row.get("title", "").strip():
         raise SourceError("Không đọc được tên sản phẩm; kiểm tra giao diện nguồn.")
     jpy, vnd = money(row.get("price_jpy", "")), money(row.get("price_vnd", ""))
@@ -80,8 +87,8 @@ def item_from_row(row):
     image_parsed = urlparse(image)
     if image_parsed.scheme != "https" or image_parsed.hostname != "static.mercdn.net":
         image = ""
-    return {"id": "mercari:" + match.group(1), "title": row["title"].strip(),
-            "url": "https://hatobox.jp" + parsed.path + "?type=mer",
+    return {"id": identity, "title": row["title"].strip(),
+            "url": "https://hatobox.jp/mercari/item/" + product_id + "?" + urlencode({"type": kind}),
             "jpy": jpy, "vnd": vnd, "image_url": image}
 
 
@@ -331,11 +338,11 @@ class Hatobox:
                 if await next_button.count() == 0 or not await next_button.is_enabled():
                     exhausted = True
                     break
-                first = rows[0]["url"]
+                first = await page.locator("main a.item-link-title").first.get_attribute("href")
                 await next_button.click(timeout=10000)
                 await page.wait_for_function("""first => {
                   const a = document.querySelector('main a.item-link-title');
-                  return a && a.href !== first;
+                  return a && a.getAttribute('href') !== first;
                 }""", arg=first, timeout=self.config["page_timeout_seconds"]*1000)
             return observed, candidates, bool(known) and not boundary and not exhausted
         finally:
